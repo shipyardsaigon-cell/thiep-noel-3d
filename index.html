@@ -648,7 +648,10 @@ function buildLink() {
   if ($('fTo').value.trim()) p.set('to', $('fTo').value.trim());
   if ($('fFrom').value.trim()) p.set('from', $('fFrom').value.trim());
   if ($('fWish').value.trim()) p.set('wish', $('fWish').value.trim());
-  return location.origin + location.pathname + (p.toString() ? '?' + p : '');
+  // Local previews (file://, localhost) share the public address instead of a link only this computer can open
+  const local = location.protocol === 'file:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  const base = local ? 'https://shipyardsaigon-cell.github.io/thiep-noel-3d/' : location.origin + location.pathname;
+  return base + (p.toString() ? '?' + p : '');
 }
 $('create').addEventListener('click', () => { $('link').textContent = buildLink(); });
 $('copy').addEventListener('click', async () => {
@@ -715,6 +718,9 @@ function frame() {
   composer.render();
   requestAnimationFrame(frame);
 }
+
+// Small handle for the channel's video recorder (camera moves, open the gift)
+window.card = { camera, controls, openGift };
 
 // Start when the fonts are ready (or after 2s at most)
 Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 2000))]).then(() => {
