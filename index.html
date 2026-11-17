@@ -1,0 +1,727 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thiệp Giáng Sinh 3D</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%8E%84%3C/text%3E%3C/svg%3E">
+<meta name="description" content="Thiệp Giáng sinh 3D làm bằng three.js, Lottie, HTML, CSS và JavaScript. Series Code cùng Shipyard.">
+<meta property="og:title" content="🎄 Bạn nhận được một tấm thiệp Giáng sinh 3D!">
+<meta property="og:description" content="Bấm mở hộp quà để xem pháo hoa và lời chúc nhé.">
+<link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@700&family=Be+Vietnam+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #ffd36b;
+    --red: #e23a4e;
+    --ink: #f6f1ff;
+    --glass: rgba(8, 12, 32, .72);
+    --line: rgba(255, 255, 255, .18);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #04081a; color: var(--ink); font-family: 'Be Vietnam Pro', system-ui, sans-serif; }
+  canvas#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+  /* Loading veil */
+  #loader { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; background: radial-gradient(circle at 50% 40%, #13214d, #04081a 70%); transition: opacity 1s; }
+  #loader.hide { opacity: 0; pointer-events: none; }
+  #loader .ring { width: 64px; height: 64px; border-radius: 50%; border: 3px solid rgba(255,255,255,.15); border-top-color: var(--gold); animation: spin 1s linear infinite; margin: 0 auto 18px; }
+  #loader p { margin: 0; text-align: center; opacity: .85; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Overlay UI */
+  .ui { position: fixed; inset: 0; z-index: 10; pointer-events: none; }
+  .ui > * { pointer-events: auto; }
+  .top { position: absolute; top: max(18px, env(safe-area-inset-top)); left: 0; right: 0; text-align: center; padding: 0 60px; opacity: 0; transform: translateY(-10px); transition: all 1s .3s; }
+  .top.show { opacity: 1; transform: none; }
+  .top .to { font-size: clamp(15px, 2.4vw, 19px); opacity: .9; }
+  .top .to b { color: var(--gold); }
+  .top h1 { margin: 4px 0 0; font-family: 'Dancing Script', cursive; font-size: clamp(38px, 7vw, 72px); line-height: 1.05; color: #fff;
+    text-shadow: 0 0 18px rgba(255, 211, 107, .55), 0 0 42px rgba(226, 58, 78, .45); }
+
+  .cta { position: absolute; left: 50%; bottom: max(28px, env(safe-area-inset-bottom)); transform: translateX(-50%); text-align: center; opacity: 0; transition: opacity .8s; }
+  .cta.show { opacity: 1; }
+  .btn { font: 700 17px 'Be Vietnam Pro', sans-serif; color: #fff; border: 0; cursor: pointer; border-radius: 999px; padding: 14px 26px;
+    background: linear-gradient(135deg, #ff5a6e, #c3122d); box-shadow: 0 8px 30px rgba(226, 58, 78, .55), inset 0 1px 0 rgba(255,255,255,.35); }
+  .btn.big { font-size: 19px; padding: 16px 34px; animation: breathe 2s ease-in-out infinite; }
+  @keyframes breathe { 50% { box-shadow: 0 8px 46px rgba(255, 90, 110, .9), inset 0 1px 0 rgba(255,255,255,.35); transform: scale(1.04); } }
+  .btn.ghost { background: rgba(255,255,255,.1); box-shadow: none; border: 1px solid var(--line); backdrop-filter: blur(8px); font-weight: 600; font-size: 15px; padding: 10px 16px; }
+  .hint { margin-top: 10px; font-size: 13px; opacity: .7; }
+
+  /* Greeting panel */
+  .panel { position: absolute; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); width: min(560px, calc(100% - 24px)); transform: translate(-50%, 40px); opacity: 0; pointer-events: none;
+    background: var(--glass); border: 1px solid var(--line); border-radius: 24px; padding: 14px 22px 18px; backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3);
+    box-shadow: 0 30px 80px rgba(0,0,0,.5); transition: all .9s cubic-bezier(.2,.9,.3,1.1); }
+  .panel.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+  .panel .sleigh { width: 210px; height: 210px; margin: -150px auto -18px; filter: drop-shadow(0 6px 14px rgba(0,0,0,.45)); }
+  .panel .msg { font-size: clamp(15px, 2.2vw, 17px); line-height: 1.65; min-height: 84px; white-space: pre-line; text-align: center; }
+  .panel .msg::after { content: '▍'; color: var(--gold); animation: blink 1s steps(1) infinite; }
+  .panel .msg.done::after { content: ''; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .panel .sign { font-family: 'Dancing Script', cursive; font-size: 26px; color: var(--gold); text-align: right; min-height: 32px; opacity: 0; transition: opacity .8s; }
+  .panel .sign.show { opacity: 1; }
+  .row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 10px; }
+
+  .maker { display: none; margin-top: 12px; text-align: left; }
+  .maker.show { display: block; }
+  .maker label { display: block; font-size: 13px; opacity: .8; margin: 8px 0 4px; }
+  .maker input, .maker textarea { width: 100%; font: 15px 'Be Vietnam Pro', sans-serif; color: #fff; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--line); background: rgba(0,0,0,.25); outline: none; }
+  .maker textarea { height: 64px; resize: none; }
+  .maker .link { margin-top: 8px; font-size: 13px; color: var(--gold); word-break: break-all; min-height: 1em; }
+
+  /* A second santa flies across the sky now and then */
+  .flyer { position: fixed; top: 6vh; left: 0; width: 340px; height: 255px; z-index: 5; pointer-events: none; opacity: 0; }
+  .flyer.go { animation: fly 11s linear forwards; }
+  @keyframes fly { 0% { transform: translate(-200px, 40px) rotate(-4deg); opacity: 1; } 50% { transform: translate(50vw, -10px) rotate(2deg); } 100% { transform: translate(calc(100vw + 40px), 30px) rotate(-3deg); opacity: 1; } }
+
+  .credit { position: fixed; right: 10px; bottom: 6px; z-index: 11; font-size: 11px; opacity: .5; text-align: right; }
+  .credit a { color: inherit; }
+  .icon-btn { position: fixed; top: max(14px, env(safe-area-inset-top)); right: 14px; z-index: 12; width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--line);
+    background: rgba(255,255,255,.08); color: #fff; font-size: 18px; cursor: pointer; backdrop-filter: blur(8px); }
+  @media (max-width: 560px) { .credit { display: none; } .panel .sleigh { width: 170px; height: 170px; margin: -120px auto -14px; } .flyer { width: 240px; height: 180px; } }
+  /* Santa popping out of a present, shown for a moment when the gift opens */
+  .pop { position: fixed; left: 50%; top: 46%; width: min(92vw, 640px); aspect-ratio: 16 / 9; transform: translate(-50%, -50%) scale(.6); opacity: 0; z-index: 20; pointer-events: none; transition: opacity .4s, transform .6s cubic-bezier(.2,.9,.3,1.4); filter: drop-shadow(0 20px 40px rgba(0,0,0,.5)); }
+  .pop.show { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lottie-web/5.12.2/lottie.min.js"></script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="loader"><div><div class="ring"></div><p>Đang treo đèn lên cây thông… 🎄</p></div></div>
+
+<button class="icon-btn" id="sound" aria-label="Bật hoặc tắt nhạc">🔇</button>
+<div class="flyer" id="flyer"></div>
+<div class="pop" id="pop"></div>
+
+<div class="ui">
+  <div class="top" id="top">
+    <div class="to" id="to">Có một món quà Giáng sinh dành cho bạn 🎁</div>
+    <h1>Merry Christmas</h1>
+  </div>
+
+  <div class="cta" id="cta">
+    <button class="btn big" id="open">🎁 Mở quà</button>
+    <div class="hint">Kéo để xoay · chạm vào hộp quà đỏ cũng được</div>
+  </div>
+
+  <div class="panel" id="panel">
+    <div class="sleigh" id="sleigh"></div>
+    <div class="msg" id="msg"></div>
+    <div class="sign" id="sign"></div>
+    <div class="row">
+      <button class="btn ghost" id="again">↺ Xem lại</button>
+      <button class="btn ghost" id="make">✍️ Tạo thiệp của em</button>
+      <button class="btn ghost" id="hide">▾ Thu gọn</button>
+    </div>
+    <div class="maker" id="maker">
+      <label for="fTo">Gửi tới</label>
+      <input id="fTo" maxlength="30" placeholder="Ví dụ: Mẹ, cô Lan, bạn Minh">
+      <label for="fFrom">Người gửi</label>
+      <input id="fFrom" maxlength="30" placeholder="Tên của em">
+      <label for="fWish">Lời chúc (có thể để trống)</label>
+      <textarea id="fWish" maxlength="160" placeholder="Chúc ... một mùa Giáng sinh thật vui!"></textarea>
+      <div class="row">
+        <button class="btn" id="create">Tạo link thiệp</button>
+        <button class="btn ghost" id="copy">Sao chép / Chia sẻ</button>
+      </div>
+      <div class="link" id="link"></div>
+    </div>
+  </div>
+</div>
+
+<div class="credit">3D: three.js · Hoạt hình Lottie: LottieFiles (Lottie Simple License) · <a href="https://www.youtube.com/@saigonshipyard" target="_blank" rel="noopener">Code cùng Shipyard</a></div>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+
+const $ = (id) => document.getElementById(id);
+const isMobile = matchMedia('(max-width: 700px)').matches || navigator.maxTouchPoints > 1;
+const params = new URLSearchParams(location.search);
+const autoOpen = params.has('autoopen');
+
+// ---------- Personal details from the link (?to=&from=&wish=) ----------
+const to = (params.get('to') || '').slice(0, 30);
+const from = (params.get('from') || '').slice(0, 30);
+const wish = (params.get('wish') || '').slice(0, 160);
+const message = (to ? 'Gửi ' + to + ',\n' : '') +
+  (wish || 'Chúc ' + (to || 'bạn') + ' một mùa Giáng sinh lung linh như ánh đèn, ấm áp như vòng tay gia đình, và một năm mới thật nhiều niềm vui! 🎄✨');
+if (to) {
+  $('to').textContent = 'Có một món quà Giáng sinh dành cho ';
+  const b = document.createElement('b');
+  b.textContent = to;
+  $('to').append(b, ' 🎁');
+}
+
+// ---------- Renderer, scene, camera ----------
+const canvas = $('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: !isMobile, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, isMobile ? 1.5 : 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.85;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x050a1f);
+scene.fog = new THREE.FogExp2(0x0a1430, 0.028);
+// Soft reflections for the shiny baubles
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera(isMobile ? 55 : 45, innerWidth / innerHeight, 0.1, 300);
+const camEnd = new THREE.Vector3(0, 3.2, isMobile ? 16.5 : 13.5);
+camera.position.set(0, 20, 34);
+
+const controls = new OrbitControls(camera, canvas);
+controls.target.set(0, isMobile ? 3.6 : 3.1, 0);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 6;
+controls.maxDistance = 20;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.autoRotateSpeed = 0.55;
+controls.enabled = false;
+
+// ---------- Lights ----------
+scene.add(new THREE.HemisphereLight(0x6f8fd8, 0x9fb0d0, 0.28));
+const moonLight = new THREE.DirectionalLight(0xa9bcf0, 0.75);
+moonLight.position.set(-10, 16, 8);
+moonLight.castShadow = true;
+moonLight.shadow.mapSize.set(isMobile ? 1024 : 2048, isMobile ? 1024 : 2048);
+Object.assign(moonLight.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 50 });
+moonLight.shadow.bias = -0.0005;
+scene.add(moonLight);
+const warm = new THREE.PointLight(0xffb36b, 7, 12, 1.6);
+warm.position.set(0, 3, 2.5);
+scene.add(warm);
+
+// ---------- Ground with soft snow drifts ----------
+const groundGeo = new THREE.CircleGeometry(70, 96);
+groundGeo.rotateX(-Math.PI / 2);
+{
+  const p = groundGeo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i), d = Math.hypot(x, z);
+    p.setY(i, d < 6 ? 0 : (Math.sin(x * 0.35) * Math.cos(z * 0.3) * 0.35 + Math.sin(x * 0.11 + z * 0.17) * 0.6) * Math.min(1, (d - 6) / 8));
+  }
+  groundGeo.computeVertexNormals();
+}
+const ground = new THREE.Mesh(groundGeo, new THREE.MeshStandardMaterial({ color: 0xc9d4ec, roughness: 0.95 }));
+ground.receiveShadow = true;
+scene.add(ground);
+
+// ---------- The Christmas tree ----------
+const tree = new THREE.Group();
+scene.add(tree);
+const pine = new THREE.MeshStandardMaterial({ color: 0x1f6b3c, roughness: 0.75, flatShading: true });
+const LAYERS = 6;
+for (let i = 0; i < LAYERS; i++) {
+  const r = 2.7 - i * 0.42, h = 1.9 - i * 0.12;
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 10, 1), pine);
+  cone.position.y = 1.35 + i * 0.86;
+  cone.rotation.y = i * 0.35;
+  cone.castShadow = true;
+  tree.add(cone);
+  // A rim of snow on each layer
+  const snowRim = new THREE.Mesh(new THREE.TorusGeometry(r * 0.93, 0.07, 6, 30), new THREE.MeshStandardMaterial({ color: 0xc8d2e8, roughness: 1 }));
+  snowRim.rotation.x = Math.PI / 2;
+  snowRim.position.y = cone.position.y - h / 2 + 0.06;
+  tree.add(snowRim);
+}
+const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.32, 0.45, 1.1, 10), new THREE.MeshStandardMaterial({ color: 0x6b3f1e, roughness: 0.9 }));
+trunk.position.y = 0.55;
+trunk.castShadow = true;
+tree.add(trunk);
+
+// Spiral garland of twinkling lights (bright colors so the bloom makes them glow)
+const LIGHTS = 190;
+const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.065, 8, 8), new THREE.MeshBasicMaterial({ toneMapped: false }), LIGHTS);
+const palette = [0xff3b5c, 0xffd23f, 0x3fd4ff, 0xff7ae0, 0x7dff9a, 0xffffff].map((c) => new THREE.Color(c));
+const bulbBase = [];
+{
+  const m = new THREE.Matrix4();
+  for (let i = 0; i < LIGHTS; i++) {
+    const t = i / LIGHTS;
+    const y = 0.75 + t * 5.4;
+    const r = 2.62 * (1 - t) + 0.12;
+    const a = t * Math.PI * 2 * 7.5;
+    m.setPosition(Math.cos(a) * r, y, Math.sin(a) * r);
+    bulbs.setMatrixAt(i, m);
+    bulbBase.push(palette[i % palette.length].clone().multiplyScalar(2.2));
+    bulbs.setColorAt(i, bulbBase[i]);
+  }
+}
+tree.add(bulbs);
+
+// Shiny baubles
+{
+  const colors = [0xd7263d, 0xf4c95d, 0xdfe6f0, 0x3a7bd5];
+  const geo = new THREE.SphereGeometry(0.16, 20, 16);
+  for (let i = 0; i < 46; i++) {
+    const layer = i % LAYERS;
+    const r = (2.7 - layer * 0.42) * 0.82;
+    const a = Math.random() * Math.PI * 2;
+    const y = 1.35 + layer * 0.86 - 0.55 + Math.random() * 0.25;
+    const ball = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: colors[i % colors.length], metalness: 0.9, roughness: 0.18 }));
+    ball.position.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    ball.castShadow = true;
+    tree.add(ball);
+  }
+}
+
+// Glowing star on top
+const starShape = new THREE.Shape();
+for (let i = 0; i < 10; i++) {
+  const r = i % 2 ? 0.22 : 0.52, a = (i / 10) * Math.PI * 2 + Math.PI / 2;
+  i ? starShape.lineTo(Math.cos(a) * r, Math.sin(a) * r) : starShape.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+}
+const star = new THREE.Mesh(new THREE.ExtrudeGeometry(starShape, { depth: 0.12, bevelEnabled: true, bevelSize: 0.04, bevelThickness: 0.04, bevelSegments: 2 }),
+  new THREE.MeshBasicMaterial({ color: new THREE.Color(0xffd36b).multiplyScalar(3), toneMapped: false }));
+star.geometry.center();
+star.position.y = 6.65;
+tree.add(star);
+const starLight = new THREE.PointLight(0xffd36b, 3, 7);
+starLight.position.y = 6.6;
+tree.add(starLight);
+
+// ---------- Presents ----------
+function makeGift(w, h, d, color, ribbon) {
+  const g = new THREE.Group();
+  const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness: 0.45, metalness: 0.1 }));
+  box.position.y = h / 2;
+  box.castShadow = box.receiveShadow = true;
+  g.add(box);
+  const rm = new THREE.MeshStandardMaterial({ color: ribbon, roughness: 0.3, metalness: 0.6 });
+  const r1 = new THREE.Mesh(new THREE.BoxGeometry(w + 0.02, h + 0.02, d * 0.16), rm);
+  const r2 = new THREE.Mesh(new THREE.BoxGeometry(w * 0.16, h + 0.02, d + 0.02), rm);
+  r1.position.y = r2.position.y = h / 2;
+  g.add(r1, r2);
+  return g;
+}
+[[-1.9, 1.3, 0.7, 0.6, 0.7, 0x2f80ed, 0xffffff, 0.4], [1.8, 1.2, 0.8, 0.5, 0.6, 0xf2c94c, 0xd7263d, -0.3],
+ [-1.2, -1.9, 0.6, 0.8, 0.6, 0x9b51e0, 0xffd36b, 0.8], [1.5, -1.6, 0.9, 0.45, 0.9, 0x27ae60, 0xffd36b, 0.2],
+ [2.4, 0.1, 0.5, 0.5, 0.5, 0xd7263d, 0xffffff, 0.6]].forEach(([x, z, w, h, d, c, r, rot]) => {
+  const g = makeGift(w, h, d, c, r);
+  g.position.set(x, 0, z);
+  g.rotation.y = rot;
+  scene.add(g);
+});
+
+// The hero gift in front of the tree, with a lid that pops open
+const hero = new THREE.Group();
+hero.position.set(0, 0, 3.1);
+scene.add(hero);
+const heroBox = makeGift(1.1, 0.85, 1.1, 0xc3122d, 0xffd36b);
+hero.add(heroBox);
+const lid = new THREE.Group();
+lid.position.y = 0.85;
+const lidMesh = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.22, 1.22), new THREE.MeshStandardMaterial({ color: 0xe0203e, roughness: 0.4 }));
+lidMesh.position.y = 0.11;
+lidMesh.castShadow = true;
+lid.add(lidMesh);
+const bowMat = new THREE.MeshStandardMaterial({ color: 0xffd36b, metalness: 0.7, roughness: 0.25 });
+for (const s of [-1, 1]) {
+  const loop = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.06, 8, 20), bowMat);
+  loop.position.set(s * 0.17, 0.32, 0);
+  loop.rotation.set(0, 0, s * 0.6);
+  lid.add(loop);
+}
+hero.add(lid);
+const heroHit = new THREE.Mesh(new THREE.BoxGeometry(1.4, 1.5, 1.4), new THREE.MeshBasicMaterial({ visible: false }));
+heroHit.position.y = 0.7;
+hero.add(heroHit);
+
+// ---------- Snowmen ----------
+function makeSnowman() {
+  const g = new THREE.Group();
+  const white = new THREE.MeshStandardMaterial({ color: 0xdfe6f4, roughness: 0.9 });
+  [[0.55, 0.5], [0.4, 1.25], [0.28, 1.8]].forEach(([r, y]) => {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(r, 24, 18), white);
+    s.position.y = y;
+    s.castShadow = true;
+    g.add(s);
+  });
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.3, 10), new THREE.MeshStandardMaterial({ color: 0xff7a1a }));
+  nose.rotation.x = Math.PI / 2;
+  nose.position.set(0, 1.8, 0.33);
+  const black = new THREE.MeshStandardMaterial({ color: 0x111111 });
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), black);
+    eye.position.set(s * 0.1, 1.9, 0.25);
+    g.add(eye);
+  }
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.26, 0.55, 18), new THREE.MeshStandardMaterial({ color: 0xd7263d }));
+  hat.position.y = 2.25;
+  const pom = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 10), white);
+  pom.position.y = 2.55;
+  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.07, 8, 24), new THREE.MeshStandardMaterial({ color: 0x2f80ed }));
+  scarf.rotation.x = Math.PI / 2;
+  scarf.position.y = 1.55;
+  g.add(nose, hat, pom, scarf);
+  return g;
+}
+const sm1 = makeSnowman(); sm1.position.set(-4.3, 0, 1.2); sm1.rotation.y = 0.5; scene.add(sm1);
+const sm2 = makeSnowman(); sm2.position.set(4.4, 0, 0.6); sm2.rotation.y = -0.6; sm2.scale.setScalar(0.8); scene.add(sm2);
+
+// ---------- Forest of pines around ----------
+{
+  const parts = [];
+  for (let i = 0; i < 3; i++) {
+    const c = new THREE.ConeGeometry(1.2 - i * 0.3, 1.5, 8);
+    c.translate(0, 1 + i * 0.75, 0);
+    parts.push(c);
+  }
+  const pineGeo = mergeGeometries(parts);
+  const count = isMobile ? 70 : 120;
+  const forest = new THREE.InstancedMesh(pineGeo, new THREE.MeshStandardMaterial({ color: 0x1a4d33, roughness: 0.85, flatShading: true }), count);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
+  for (let i = 0; i < count; i++) {
+    const a = Math.random() * Math.PI * 2, d = 22 + Math.random() * 30, k = 1.1 + Math.random() * 1.8;
+    p.set(Math.cos(a) * d, 0, Math.sin(a) * d);
+    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.random() * 6);
+    s.set(k, k * (0.9 + Math.random() * 0.5), k);
+    forest.setMatrixAt(i, m.compose(p, q, s));
+  }
+  scene.add(forest);
+}
+
+// ---------- Sky: stars, moon and aurora ----------
+function dotTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.4, 'rgba(255,255,255,.7)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g;
+  x.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+const dot = dotTexture();
+{
+  const n = 1400, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const th = Math.random() * Math.PI * 2, ph = Math.random() * Math.PI * 0.45;
+    pos.set([Math.cos(th) * Math.sin(ph) * 120, Math.cos(ph) * 120 * 0.6 + 8, Math.sin(th) * Math.sin(ph) * 120], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 0.7, map: dot, transparent: true, depthWrite: false, fog: false, color: 0xdfe8ff })));
+}
+const moon = new THREE.Mesh(new THREE.SphereGeometry(2.4, 32, 32), new THREE.MeshBasicMaterial({ color: new THREE.Color(0xfff4d6).multiplyScalar(1.6), toneMapped: false, fog: false }));
+moon.position.set(-30, 26, -55);
+scene.add(moon);
+
+// An open cylinder around the whole sky, so the aurora stays visible while the camera orbits
+const aurora = new THREE.Mesh(new THREE.CylinderGeometry(78, 78, 38, 96, 1, true), new THREE.ShaderMaterial({
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, side: THREE.BackSide,
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+  fragmentShader: `
+    varying vec2 vUv; uniform float uTime;
+    void main(){
+      float x = vUv.x * 24.0;
+      float wave = sin(x + uTime * 0.25) * 0.12 + sin(x * 2.3 - uTime * 0.4) * 0.06 + sin(x * 0.7 + uTime * 0.15) * 0.1;
+      float band = smoothstep(0.0, 0.25, vUv.y - 0.3 - wave) * (1.0 - smoothstep(0.25, 0.75, vUv.y - 0.3 - wave));
+      float rays = 0.65 + 0.35 * sin(vUv.x * 360.0 + sin(vUv.x * 52.0 + uTime) * 4.0);
+      vec3 col = mix(vec3(0.1, 1.0, 0.6), vec3(0.6, 0.3, 1.0), vUv.y + sin(x * 0.5 + uTime * 0.2) * 0.2);
+      float edge = 0.6 + 0.4 * sin(vUv.x * 6.2832 * 2.0 + 1.0);
+      gl_FragColor = vec4(col * band * rays * edge * 0.32, 1.0);
+    }`,
+}));
+aurora.position.set(0, 22, 0);
+scene.add(aurora);
+
+// ---------- Falling snow ----------
+const SNOW = isMobile ? 1400 : 3000;
+const snowPos = new Float32Array(SNOW * 3), snowSpeed = new Float32Array(SNOW);
+for (let i = 0; i < SNOW; i++) {
+  snowPos.set([(Math.random() - 0.5) * 50, Math.random() * 25, (Math.random() - 0.5) * 50], i * 3);
+  snowSpeed[i] = 0.6 + Math.random() * 1.2;
+}
+const snowGeo = new THREE.BufferGeometry();
+snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
+const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ size: 0.14, map: dot, transparent: true, depthWrite: false, color: 0xffffff, opacity: 0.95 }));
+scene.add(snow);
+
+// ---------- Fireworks and gift burst ----------
+const bursts = [];
+function burst(origin, { count = 160, speed = 6, color, up = 0, life = 2.2, size = 0.22, gravity = 4 } = {}) {
+  const pos = new Float32Array(count * 3), vel = new Float32Array(count * 3), col = new Float32Array(count * 3);
+  const base = color && color !== 'confetti' ? new THREE.Color(color) : new THREE.Color().setHSL(Math.random(), 1, 0.6);
+  for (let i = 0; i < count; i++) {
+    pos.set([origin.x, origin.y, origin.z], i * 3);
+    const v = new THREE.Vector3().randomDirection().multiplyScalar(speed * (0.55 + Math.random() * 0.45));
+    v.y += up;
+    vel.set([v.x, v.y, v.z], i * 3);
+    const c = color === 'confetti' ? new THREE.Color().setHSL(Math.random(), 1, 0.6) : base;
+    col.set([c.r * 4, c.g * 4, c.b * 4], i * 3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const mat = new THREE.PointsMaterial({ size, map: dot, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
+  const pts = new THREE.Points(g, mat);
+  scene.add(pts);
+  bursts.push({ pts, vel, age: 0, life, gravity });
+}
+function updateBursts(dt) {
+  for (let k = bursts.length - 1; k >= 0; k--) {
+    const b = bursts[k];
+    b.age += dt;
+    const p = b.pts.geometry.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      b.vel[i * 3 + 1] -= b.gravity * dt;
+      b.vel[i * 3] *= 0.985; b.vel[i * 3 + 2] *= 0.985;
+      p.array[i * 3] += b.vel[i * 3] * dt;
+      p.array[i * 3 + 1] += b.vel[i * 3 + 1] * dt;
+      p.array[i * 3 + 2] += b.vel[i * 3 + 2] * dt;
+    }
+    p.needsUpdate = true;
+    b.pts.material.opacity = Math.max(0, 1 - b.age / b.life);
+    if (b.age > b.life) { scene.remove(b.pts); b.pts.geometry.dispose(); b.pts.material.dispose(); bursts.splice(k, 1); }
+  }
+}
+
+// ---------- Post-processing (bloom makes the lights glow) ----------
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth, innerHeight), 0.9, 0.5, 1.0);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+  composer.setSize(innerWidth, innerHeight);
+});
+
+// ---------- Music: "Jingle Bells" chorus (public domain) with soft bells and bass ----------
+let audio, musicGain, musicOn = false, nextLoop = 0;
+const N = { C4: 261.63, F3: 174.61, G3: 196, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G5: 783.99 };
+const tune = [['E5',1],['E5',1],['E5',2],['E5',1],['E5',1],['E5',2],['E5',1],['G5',1],['C5',1.5],['D5',.5],['E5',4],
+  ['F5',1],['F5',1],['F5',1.5],['F5',.5],['F5',1],['E5',1],['E5',1],['E5',.5],['E5',.5],['E5',1],['D5',1],['D5',1],['E5',1],['D5',2],['G5',2]];
+const bass = ['C4','C4','C4','C4','F3','C4','G3','G3'];
+function tone(freq, at, len, type, vol) {
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(vol, at + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + Math.max(0.3, len));
+  o.connect(g); g.connect(musicGain);
+  o.start(at); o.stop(at + len + 0.35);
+}
+function scheduleTune(start) {
+  const beat = 0.28;
+  let t = start;
+  for (const [n, b] of tune) {
+    tone(N[n], t, b * beat * 1.2, 'sine', 0.22);
+    tone(N[n] * 2, t, b * beat * 0.8, 'triangle', 0.05);
+    t += b * beat;
+  }
+  bass.forEach((n, i) => tone(N[n] / 2, start + i * 4 * beat, 4 * beat, 'triangle', 0.12));
+  return t - start;
+}
+function startMusic() {
+  try {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (!musicGain) { musicGain = audio.createGain(); musicGain.connect(audio.destination); }
+    audio.resume();
+    musicGain.gain.value = 0.9;
+    musicOn = true;
+    nextLoop = audio.currentTime + 0.1;
+    $('sound').textContent = '🔊';
+  } catch (e) { /* audio is optional */ }
+}
+function stopMusic() { if (musicGain) musicGain.gain.value = 0; musicOn = false; $('sound').textContent = '🔇'; }
+$('sound').addEventListener('click', () => (musicOn ? stopMusic() : startMusic()));
+
+// ---------- Lottie: santa in the panel and a flyer across the sky ----------
+lottie.loadAnimation({ container: $('sleigh'), renderer: 'svg', loop: true, autoplay: true, path: 'santa-merry.json' });
+lottie.loadAnimation({ container: $('flyer'), renderer: 'svg', loop: true, autoplay: true, path: 'santa-sleigh.json' });
+const popAnim = lottie.loadAnimation({ container: $('pop'), renderer: 'svg', loop: false, autoplay: false, path: 'santa-gift.json' });
+function showPop() {
+  $('pop').classList.add('show');
+  popAnim.goToAndPlay(0, true);
+  setTimeout(() => $('pop').classList.remove('show'), 3200);
+}
+function flySanta() {
+  const f = $('flyer');
+  f.classList.remove('go');
+  void f.offsetWidth;
+  f.classList.add('go');
+}
+
+// ---------- Opening the gift ----------
+let opened = false, openT = -1, typing, fireworksTimer;
+function typeMessage() {
+  clearInterval(typing);
+  const chars = [...message];
+  let i = 0;
+  $('msg').textContent = '';
+  $('msg').classList.remove('done');
+  $('sign').classList.remove('show');
+  typing = setInterval(() => {
+    $('msg').textContent += chars[i++];
+    if (i >= chars.length) {
+      clearInterval(typing);
+      $('msg').classList.add('done');
+      $('sign').textContent = from ? '— ' + from + ' —' : '— Merry Christmas —';
+      $('sign').classList.add('show');
+    }
+  }, 42);
+}
+function openGift() {
+  if (opened) return;
+  opened = true;
+  openT = 0;
+  $('cta').classList.remove('show');
+  if (!autoOpen) startMusic();
+  const top = hero.localToWorld(new THREE.Vector3(0, 1.1, 0));
+  burst(top, { count: 260, speed: 5, color: 'confetti', up: 4, life: 2.6, size: 0.16, gravity: 5 });
+  setTimeout(showPop, 500);
+  setTimeout(() => {
+    $('panel').classList.add('show');
+    typeMessage();
+    flySanta();
+  }, 3600);
+  // Fireworks over the forest every second or so
+  clearInterval(fireworksTimer);
+  fireworksTimer = setInterval(() => {
+    burst(new THREE.Vector3((Math.random() - 0.5) * 26, 9 + Math.random() * 6, -8 - Math.random() * 10), { count: isMobile ? 140 : 240, speed: 5 + Math.random() * 3, life: 2.4, size: 0.42, gravity: 2.5 });
+  }, 900);
+  setInterval(flySanta, 22000);
+}
+$('open').addEventListener('click', openGift);
+$('again').addEventListener('click', () => {
+  opened = false;
+  lid.position.set(0, 0.85, 0); lid.rotation.set(0, 0, 0);
+  $('panel').classList.remove('show');
+  setTimeout(openGift, 500);
+});
+$('hide').addEventListener('click', () => {
+  const p = $('panel');
+  p.classList.toggle('show');
+  $('hide').textContent = '▾ Thu gọn';
+  if (!p.classList.contains('show')) {
+    $('cta').innerHTML = '';
+    const b = document.createElement('button');
+    b.className = 'btn';
+    b.textContent = '💌 Xem lời chúc';
+    b.onclick = () => { p.classList.add('show'); $('cta').classList.remove('show'); };
+    $('cta').append(b);
+    $('cta').classList.add('show');
+  }
+});
+
+// Tap the red present in the scene
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+let downAt = null;
+canvas.addEventListener('pointerdown', (e) => { downAt = [e.clientX, e.clientY]; });
+canvas.addEventListener('pointerup', (e) => {
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  if (ray.intersectObject(heroHit).length) openGift();
+});
+
+// ---------- Make your own card ----------
+$('make').addEventListener('click', () => $('maker').classList.toggle('show'));
+function buildLink() {
+  const p = new URLSearchParams();
+  if ($('fTo').value.trim()) p.set('to', $('fTo').value.trim());
+  if ($('fFrom').value.trim()) p.set('from', $('fFrom').value.trim());
+  if ($('fWish').value.trim()) p.set('wish', $('fWish').value.trim());
+  return location.origin + location.pathname + (p.toString() ? '?' + p : '');
+}
+$('create').addEventListener('click', () => { $('link').textContent = buildLink(); });
+$('copy').addEventListener('click', async () => {
+  const url = buildLink();
+  $('link').textContent = url;
+  try {
+    if (navigator.share) await navigator.share({ title: 'Thiệp Giáng sinh 3D', url });
+    else { await navigator.clipboard.writeText(url); $('copy').textContent = 'Đã chép ✓'; }
+  } catch (e) { /* share sheet closed */ }
+});
+
+// ---------- Animation loop ----------
+const clock = new THREE.Clock();
+let introT = 0;
+const camStart = camera.position.clone();
+const ease = (t) => 1 - Math.pow(1 - t, 3);
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+
+  // Intro: glide down from the sky to the tree
+  if (introT < 1) {
+    introT = Math.min(1, introT + dt / 4);
+    camera.position.lerpVectors(camStart, camEnd, ease(introT));
+    camera.lookAt(controls.target);
+    if (introT === 1) {
+      controls.enabled = true;
+      controls.autoRotate = true;
+      $('top').classList.add('show');
+      $('cta').classList.add('show');
+      if (autoOpen) setTimeout(openGift, 1200);
+    }
+  } else controls.update();
+
+  // Twinkle the garland
+  for (let i = 0; i < LIGHTS; i++) {
+    const k = 0.35 + 0.65 * Math.max(0, Math.sin(t * 3 + i * 0.7));
+    bulbs.setColorAt(i, new THREE.Color().copy(bulbBase[i]).multiplyScalar(k));
+  }
+  bulbs.instanceColor.needsUpdate = true;
+  star.rotation.y = t * 0.8;
+  star.scale.setScalar(1 + Math.sin(t * 2.5) * 0.06);
+  warm.intensity = 6.5 + Math.sin(t * 5) * 1;
+  aurora.material.uniforms.uTime.value = t;
+
+  // Snow drifting down
+  const p = snowGeo.attributes.position.array;
+  for (let i = 0; i < SNOW; i++) {
+    p[i * 3 + 1] -= snowSpeed[i] * dt;
+    p[i * 3] += Math.sin(t * 0.6 + i) * 0.004;
+    if (p[i * 3 + 1] < 0) p[i * 3 + 1] = 25;
+  }
+  snowGeo.attributes.position.needsUpdate = true;
+
+  // Lid flies off once the gift is opened
+  if (opened && openT >= 0 && openT < 1.6) {
+    openT += dt;
+    const k = Math.min(1, openT / 1.2);
+    lid.position.set(-1.6 * ease(k), 0.85 + Math.sin(k * Math.PI) * 2.4 + k * 0.2 - k * 0.95, 0.6 * k);
+    lid.rotation.set(-k * 1.2, 0, k * 2.2);
+  }
+  updateBursts(dt);
+  // Keep the music looping while it is on
+  if (musicOn && audio && audio.currentTime > nextLoop - 0.5) nextLoop += scheduleTune(Math.max(nextLoop, audio.currentTime + 0.05)) + 1.2;
+  composer.render();
+  requestAnimationFrame(frame);
+}
+
+// Start when the fonts are ready (or after 2s at most)
+Promise.race([document.fonts.ready, new Promise((r) => setTimeout(r, 2000))]).then(() => {
+  $('loader').classList.add('hide');
+  clock.start();
+  requestAnimationFrame(frame);
+});
+</script>
+</body>
+</html>
